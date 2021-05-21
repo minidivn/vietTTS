@@ -36,7 +36,7 @@ def text2tokens(text, lexicon_fn):
   lexicon = load_lexicon(lexicon_fn)
 
   words = text.strip().lower().split()
-  tokens = [0]
+  tokens = []
   for word in words:
     if word in phonemes:
       tokens.append(phonemes.index(word))
@@ -49,7 +49,6 @@ def text2tokens(text, lexicon_fn):
       for p in word:
         if p in phonemes:
           tokens.append(phonemes.index(p))
-  tokens.append(0)  # silence
   return tokens
 
 
