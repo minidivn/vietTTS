@@ -51,6 +51,7 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
     ps, ds = zip(*load_textgrid(fn))
     pad_left, pad_right = 0, 0
     ps_idx = [phonemes.index(p) for p in ps]
+    ds = list(ds)
     if ps[0] in ['sil', 'sp', 'spn']:
       ps_idx.pop(0)
       pad_left = int(ds[0] * sr)
