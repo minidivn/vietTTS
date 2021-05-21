@@ -117,7 +117,8 @@ class AcousticModel(hk.Module):
 
   def __call__(self, inputs: AcousticInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
-    durations = jnp.squeeze(jax.nn.softplus(self.duration_projection(x)), axis=-1)
+    durations_hat = jnp.squeeze(jax.nn.softplus(self.duration_projection(x)), axis=-1)
+    durations = inputs.durations
     x = self.upsample(x, durations, inputs.mels.shape[1])
     mels = self.prenet(inputs.mels)
     x = jnp.concatenate((x, mels), axis=-1)
@@ -134,4 +135,4 @@ class AcousticModel(hk.Module):
     x, _ = hk.dynamic_unroll(zoneout_decoder, (x, mask), hx, time_major=False)
     x = self.projection(x)
     residual = self.postnet(x)
-    return x, x + residual, durations
+    return x, x + residual, durations_hat
