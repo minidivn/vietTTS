@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 from jax.numpy import ndarray
 
-from .config import FLAGS, AcousticInput, DurationInput
+from .config import FLAGS, AcousticInput
 
 
 class TokenEncoder(hk.Module):
@@ -42,27 +42,6 @@ class TokenEncoder(hk.Module):
     return x
 
 
-class DurationModel(hk.Module):
-  """Duration model of phonemes."""
-
-  def __init__(self, is_training=True):
-    super().__init__()
-    self.is_training = is_training
-    self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.duration_lstm_dim,
-                                FLAGS.duration_embed_dropout_rate, is_training)
-    self.projection = hk.Sequential([
-        hk.Linear(FLAGS.duration_lstm_dim),
-        jax.nn.gelu,
-        hk.Linear(1),
-    ])
-
-  def __call__(self, inputs: DurationInput):
-    x = self.encoder(inputs.phonemes, inputs.lengths)
-    x = jnp.squeeze(self.projection(x), axis=-1)
-    x = jax.nn.softplus(x)
-    return x
-
-
 class AcousticModel(hk.Module):
   """Predict melspectrogram from aligned phonemes"""
 
@@ -74,6 +53,7 @@ class AcousticModel(hk.Module):
         hk.LSTM(FLAGS.acoustic_decoder_dim),
         hk.LSTM(FLAGS.acoustic_decoder_dim)
     ])
+    self.duration_projection = hk.Linear(1)
     self.projection = hk.Linear(FLAGS.mel_dim)
 
     # prenet
@@ -110,10 +90,12 @@ class AcousticModel(hk.Module):
       x = hk.dropout(hk.next_rng_key(), 0.5, x) if self.is_training else x
     return x
 
-  def inference(self, tokens, durations, n_frames):
+  def inference(self, tokens):
     B, L = tokens.shape
     lengths = jnp.array([L], dtype=jnp.int32)
     x = self.encoder(tokens, lengths)
+    durations = jnp.squeeze(jax.nn.softplus(self.duration_projection(x)), axis=-1)
+    n_frames = int(jnp.sum(durations).item() * FLAGS.sample_rate / (FLAGS.n_fft//4))
     x = self.upsample(x, durations, n_frames)
 
     def loop_fn(inputs, state):
@@ -135,7 +117,8 @@ class AcousticModel(hk.Module):
 
   def __call__(self, inputs: AcousticInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
-    x = self.upsample(x, inputs.durations, inputs.mels.shape[1])
+    durations = jnp.squeeze(jax.nn.softplus(self.duration_projection(x)), axis=-1)
+    x = self.upsample(x, durations, inputs.mels.shape[1])
     mels = self.prenet(inputs.mels)
     x = jnp.concatenate((x, mels), axis=-1)
     B, L, D = x.shape
@@ -151,4 +134,4 @@ class AcousticModel(hk.Module):
     x, _ = hk.dynamic_unroll(zoneout_decoder, (x, mask), hx, time_major=False)
     x = self.projection(x)
     residual = self.postnet(x)
-    return x, x + residual
+    return x, x + residual, durations

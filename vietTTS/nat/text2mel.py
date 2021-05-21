@@ -60,29 +60,19 @@ def predict_mel(tokens, durations):
     last_step, params, aux, rng, optim_state = dic['step'], dic['params'], dic['aux'], dic['rng'], dic['optim_state']
 
   @hk.transform_with_state
-  def forward(tokens, durations, n_frames):
+  def forward(tokens):
     net = AcousticModel(is_training=False)
-    return net.inference(tokens, durations, n_frames)
+    return net.inference(tokens)
 
-  durations = durations * FLAGS.sample_rate / (FLAGS.n_fft//4)
-  n_frames = int(jnp.sum(durations).item())
-  predict_fn = jax.jit(forward.apply, static_argnums=[5])
+  predict_fn = jax.jit(forward.apply)
   tokens = np.array(tokens, dtype=np.int32)[None, :]
-  return predict_fn(params, aux, rng, tokens, durations, n_frames)[0]
+  return predict_fn(params, aux, rng, tokens)[0]
 
 
 def text2mel(text: str, lexicon_fn=FLAGS.data_dir / 'lexicon.txt', silence_duration: float = -1.):
   tokens = text2tokens(text, lexicon_fn)
-  durations = predict_duration(tokens)
-  durations = jnp.where(
-      np.array(tokens)[None, :] <= 2,
-      jnp.clip(durations, a_min=silence_duration, a_max=None),
-      durations
-  )
-  mels = predict_mel(tokens, durations)
-  end_silence = durations[0, -1].item()
-  silence_frame = int(end_silence * FLAGS.sample_rate / (FLAGS.n_fft // 4))
-  return mels[:, :-silence_frame]
+  mels = predict_mel(tokens)
+  return mels
 
 
 if __name__ == '__main__':

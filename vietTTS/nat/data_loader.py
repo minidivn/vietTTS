@@ -4,7 +4,6 @@ from pathlib import Path
 import numpy as np
 import textgrid
 from scipy.io import wavfile
-from vietTTS.nat.model import DurationModel
 
 from .config import AcousticInput, DurationInput
 
