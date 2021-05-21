@@ -95,7 +95,7 @@ class AcousticModel(hk.Module):
     lengths = jnp.array([L], dtype=jnp.int32)
     x = self.encoder(tokens, lengths)
     durations = jnp.squeeze(jax.nn.softplus(self.duration_projection(x)), axis=-1)
-    n_frames = int(jnp.sum(durations).item() * FLAGS.sample_rate / (FLAGS.n_fft//4))
+    n_frames = int(jnp.sum(durations).item())
     x = self.upsample(x, durations, n_frames)
 
     def loop_fn(inputs, state):

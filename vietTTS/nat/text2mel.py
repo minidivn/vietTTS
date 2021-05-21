@@ -8,27 +8,13 @@ import numpy as np
 
 from .config import FLAGS, DurationInput
 from .data_loader import load_phonemes_set_from_lexicon_file
-from .model import AcousticModel, DurationModel
+from .model import AcousticModel
 
 
 def load_lexicon(fn):
   lines = open(fn, 'r').readlines()
   lines = [l.lower().strip().split('\t') for l in lines]
   return dict(lines)
-
-
-def predict_duration(tokens):
-  forward_fn = jax.jit(hk.transform_with_state(
-      lambda x: DurationModel(is_training=False)(x)
-  ).apply)
-  with open(FLAGS.ckpt_dir / 'duration_ckpt_latest.pickle', 'rb') as f:
-    dic = pickle.load(f)
-  x = DurationInput(
-      np.array(tokens, dtype=np.int32)[None, :],
-      np.array([len(tokens)], dtype=np.int32),
-      None
-  )
-  return forward_fn(dic['params'], dic['aux'], dic['rng'], x)[0]
 
 
 def text2tokens(text, lexicon_fn):
@@ -52,7 +38,7 @@ def text2tokens(text, lexicon_fn):
   return tokens
 
 
-def predict_mel(tokens, durations):
+def predict_mel(tokens):
   ckpt_fn = FLAGS.ckpt_dir / 'acoustic_ckpt_latest.pickle'
   with open(ckpt_fn, 'rb') as f:
     dic = pickle.load(f)
@@ -63,7 +49,7 @@ def predict_mel(tokens, durations):
     net = AcousticModel(is_training=False)
     return net.inference(tokens)
 
-  predict_fn = jax.jit(forward.apply)
+  predict_fn = forward.apply
   tokens = np.array(tokens, dtype=np.int32)[None, :]
   return predict_fn(params, aux, rng, tokens)[0]
 
