@@ -4,6 +4,8 @@ import time
 import jax
 import librosa
 import matplotlib.pyplot as plt
+import numpy as np
+import scipy
 import soundfile as sf
 from tabulate import tabulate
 from vietTTS.nat.dsp import *
@@ -47,9 +49,11 @@ def make_new_log_file():
 
 
 def pre_emphasis(y):
-  y = y.astype(jnp.float32) * 0.9
-  y = y - FLAGS.pre_emphais * jnp.roll(y, shift=1, axis=-1)
-  y = jnp.rint(y)
+  y = y.astype(jnp.float32)
+  y = y - FLAGS.pre_emphasis * jnp.roll(y, shift=1, axis=-1)
+  max_value = 2**(FLAGS.bits-1)
+  scale = jnp.clip(jnp.abs(y).max(axis=-1, keepdims=True) / max_value, a_min=1.0, a_max=None)
+  y = y / scale
   return y
 
 
@@ -95,12 +99,25 @@ def regenerate_from_signal_(y, rng, sr):
 regenerate_from_signal = jax.jit(regenerate_from_signal_.apply, static_argnums=[4])
 
 
+def deemphasis(y, coef=0.95, zi=None):
+  b = np.asarray([1.0, -coef], dtype=y.dtype)
+  a = np.asarray([1.0], dtype=y.dtype)
+
+  if zi is None:
+    zi = ((2 - coef) * y[0] - y[1]) / (3 - coef)
+  y[0] -= zi
+
+  y_out = scipy.signal.lfilter(a, b, y)
+  return y_out
+
+
 def gen_test_sample(params, aux, rng, test_clip, step=0, sr=16000):
   t1 = time.perf_counter()
   synthesized_clip, reg, pr = regenerate_from_signal(params, aux, test_clip, rng, sr)[0]
   synthesized_clip = jax.device_get(synthesized_clip)
   n_elem = 2**FLAGS.mu_law_bits
   synthesized_clip = librosa.mu_expand(synthesized_clip[0] - n_elem//2, mu=n_elem - 1)
+  synthesized_clip = deemphasis(synthesized_clip, coef=FLAGS.pre_emphasis)
   t2 = time.perf_counter()
   delta = t2 - t1
   l = len(synthesized_clip) / sr
