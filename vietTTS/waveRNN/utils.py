@@ -46,12 +46,20 @@ def make_new_log_file():
   return open(fn, 'w', buffering=1)
 
 
+def pre_emphasis(y):
+  y = y.astype(jnp.float32) * 0.9
+  y = y - FLAGS.pre_emphais * jnp.roll(y, shift=1, axis=-1)
+  y = jnp.rint(y)
+  return y
+
+
 @hk.without_apply_rng
 @hk.transform_with_state
 def regenerate_from_signal_(y, rng, sr):
   melfilter = MelFilter(sr, 1024, 80, fmin=FLAGS.fmin, fmax=FLAGS.fmax)
   pad_left = 1024
   pad_right = 1024
+  y = pre_emphasis(y)
   y = y.astype(jnp.float32) / (2**(FLAGS.bits-1))  # rescale
   y = jnp.pad(y, ((0, 0), (pad_left, pad_right)))
   mel = melfilter(y)

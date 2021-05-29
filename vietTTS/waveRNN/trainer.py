@@ -20,6 +20,7 @@ def loss_fn(params, aux, batch, sr=16000):
   melfilter = MelFilter(sr, 1024, 80, fmin=FLAGS.fmin, fmax=FLAGS.fmax)
   y = batch
   n_elem = 2**FLAGS.mu_law_bits
+  y = pre_emphasis(y)
   mu = encode_16bit_mu_law(y, mu=n_elem - 1)
   y = y.astype(jnp.float32) / (2**15)
   mel = melfilter(y)

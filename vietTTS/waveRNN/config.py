@@ -35,3 +35,4 @@ class FLAGS:
   variance_loss_scale = 0.1  # regularization term
   bits = 16
   mu_law_bits = 10
+  pre_emphasis=0.98
