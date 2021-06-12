@@ -1,19 +1,28 @@
 from setuptools import setup
 
-__version__ = '0.3.1'
+__version__ = '1.0.0b'
 url = 'https://github.com/ntt123/vietTTS'
 
-install_requires = ['tabulate', 'optax', 'jax', 'jaxlib', 'einops', 'librosa',
-                    'textgrid', 'dm-haiku @ git+https://github.com/deepmind/dm-haiku', 'tqdm', 'gdown']
+install_requires = [
+    'dm-haiku @ git+https://github.com/deepmind/dm-haiku', 
+    'einops', 
+    'gdown'
+    'jax', 
+    'jaxlib', 
+    'librosa', 
+    'optax', 
+    'tabulate', 
+    'textgrid', 
+    'tqdm', 
+]
 setup_requires = []
 tests_require = []
 
 setup(
     name='vietTTS',
     version=__version__,
-    description='A vietnamese text-to-speech system.',
+    description='A vietnamese text-to-speech engine',
     author='ntt123',
-    author_email='xcodevn@gmail.com',
     url=url,
     keywords=['text-to-speech', 'tts', 'deep-learning', 'dm-haiku', 'jax', 'vietnamese', 'speech-synthesis'],
     install_requires=install_requires,

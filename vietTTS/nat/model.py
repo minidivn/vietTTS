@@ -9,18 +9,18 @@ from .config import FLAGS, AcousticInput, DurationInput
 class TokenEncoder(hk.Module):
   """Encode phonemes/text to vector"""
 
-  def __init__(self, vocab_size, lstm_dim, dropout_rate, is_training=True):
+  def __init__(self, vocab_size, rnn_dim, dropout_rate, is_training=True):
     super().__init__()
     self.is_training = is_training
-    self.embed = hk.Embed(vocab_size, lstm_dim)
-    self.conv1 = hk.Conv1D(lstm_dim, 3, padding='SAME')
-    self.conv2 = hk.Conv1D(lstm_dim, 3, padding='SAME')
-    self.conv3 = hk.Conv1D(lstm_dim, 3, padding='SAME')
+    self.embed = hk.Embed(vocab_size, rnn_dim)
+    self.conv1 = hk.Conv1D(rnn_dim, 3, padding='SAME')
+    self.conv2 = hk.Conv1D(rnn_dim, 3, padding='SAME')
+    self.conv3 = hk.Conv1D(rnn_dim, 3, padding='SAME')
     self.bn1 = hk.BatchNorm(True, True, 0.9)
     self.bn2 = hk.BatchNorm(True, True, 0.9)
     self.bn3 = hk.BatchNorm(True, True, 0.9)
-    self.lstm_fwd = hk.LSTM(lstm_dim)
-    self.lstm_bwd = hk.ResetCore(hk.LSTM(lstm_dim))
+    self.rnn_fwd = hk.GRU(rnn_dim)
+    self.rnn_bwd = hk.ResetCore(hk.GRU(rnn_dim))
     self.dropout_rate = dropout_rate
 
   def __call__(self, x, lengths):
@@ -33,11 +33,11 @@ class TokenEncoder(hk.Module):
     x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
     B, L, D = x.shape
     mask = jnp.arange(0, L)[None, :] >= (lengths[:, None] - 1)
-    h0c0_fwd = self.lstm_fwd.initial_state(B)
-    new_hx_fwd, new_hxcx_fwd = hk.dynamic_unroll(self.lstm_fwd, x, h0c0_fwd, time_major=False)
+    h0c0_fwd = self.rnn_fwd.initial_state(B)
+    new_hx_fwd, new_hxcx_fwd = hk.dynamic_unroll(self.rnn_fwd, x, h0c0_fwd, time_major=False)
     x_bwd, mask_bwd = jax.tree_map(lambda x: jnp.flip(x, axis=1), (x, mask))
-    h0c0_bwd = self.lstm_bwd.initial_state(B)
-    new_hx_bwd, new_hxcx_bwd = hk.dynamic_unroll(self.lstm_bwd, (x_bwd, mask_bwd), h0c0_bwd, time_major=False)
+    h0c0_bwd = self.rnn_bwd.initial_state(B)
+    new_hx_bwd, new_hxcx_bwd = hk.dynamic_unroll(self.rnn_bwd, (x_bwd, mask_bwd), h0c0_bwd, time_major=False)
     x = jnp.concatenate((new_hx_fwd, jnp.flip(new_hx_bwd, axis=1)), axis=-1)
     return x
 

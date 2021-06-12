@@ -26,7 +26,7 @@ class FLAGS(Namespace):
 
   # dsp
   mel_dim = 80
-  n_fft = 1024
+  n_fft = 2048
   sample_rate = 16000
   fmin = 0.0
   fmax = 8000
@@ -36,7 +36,7 @@ class FLAGS(Namespace):
   learning_rate = 1e-4
   duration_learning_rate = 1e-4
   max_grad_norm = 1.0
-  weight_decay = 1e-4
+  weight_decay = 1e-2
 
   # ckpt
   ckpt_dir = Path('assets/infore/nat')
