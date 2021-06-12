@@ -6,7 +6,7 @@ url = 'https://github.com/ntt123/vietTTS'
 install_requires = [
     'dm-haiku @ git+https://github.com/deepmind/dm-haiku', 
     'einops', 
-    'gdown'
+    'gdown',
     'jax', 
     'jaxlib', 
     'librosa', 
