@@ -111,7 +111,7 @@ class MelFilter:
     p = (self.n_fft - hop_length) // 2
     y = jnp.pad(y, ((p, p), (0, 0)), mode='reflect')
     spec = batched_stft(y, self.n_fft, hop_length, window_length, 'hann', False, 'reflect')
-    mag = jnp.sqrt(jnp.square(spec.real) + jnp.square(spec.imag) + 1e-9)
-    mel = jnp.einsum('ms,sfn->nfm', self.melfb, mag)
-    cond = jnp.log(jnp.clip(mel, a_min=1e-5, a_max=None))
+    mag2 = jnp.square(spec.real) + jnp.square(spec.imag)
+    mel = jnp.einsum('ms,sfn->nfm', self.melfb, mag2)
+    cond = jnp.log(1e-5 + mel)
     return cond
