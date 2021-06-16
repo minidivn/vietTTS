@@ -6,6 +6,7 @@ from jax.numpy import ndarray
 
 
 class FLAGS(Namespace):
+  range_lstm_dim = 256
   duration_lstm_dim = 256
   vocab_size = 256
   duration_embed_dropout_rate = 0.5
@@ -57,3 +58,4 @@ class AcousticInput(NamedTuple):
   wavs: ndarray
   wav_lengths: ndarray
   mels: ndarray
+  frame_idx: ndarray

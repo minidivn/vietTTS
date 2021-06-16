@@ -13,16 +13,16 @@ from vietTTS.nat.config import AcousticInput
 from .config import FLAGS, AcousticInput
 from .data_loader import load_textgrid_wav
 from .dsp import MelFilter
-from .model import AcousticModel
+from .model import NATNet
 from .utils import print_flags
 
 
 @hk.transform_with_state
-def net(x): return AcousticModel(is_training=True)(x)
+def net(x): return NATNet(is_training=True)(x)
 
 
 @hk.transform_with_state
-def val_net(x): return AcousticModel(is_training=False)(x)
+def val_net(x): return NATNet(is_training=False)(x)
 
 
 def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
@@ -32,12 +32,18 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
   n_frames = inputs.durations * FLAGS.sample_rate / (FLAGS.n_fft//4)
   inputs = inputs._replace(mels=inp_mels, durations=n_frames)
-  (mel1_hat, mel2_hat), new_aux = (net if is_training else val_net).apply(params, aux, rng, inputs)
+  (mel1_hat, mel2_hat, duration_hat), new_aux = (net if is_training else val_net).apply(params, aux, rng, inputs)
   loss1 = (jnp.square(mel1_hat - mels) + jnp.square(mel2_hat - mels)) / 2
   loss2 = (jnp.abs(mel1_hat - mels) + jnp.abs(mel2_hat - mels)) / 2
   loss = jnp.mean((loss1 + loss2)/2, axis=-1)
   mask = jnp.arange(0, L)[None, :] < (inputs.wav_lengths // (FLAGS.n_fft // 4))[:, None]
   loss = jnp.sum(loss * mask) / jnp.sum(mask)
+  import pdb; pdb.set_trace()
+  duration_loss = jnp.square(duration_hat - inputs.durations)
+  B, L = duration_loss.shape
+  mask = jnp.arange(0, L)[None, :] < inputs.lengths
+  duration_loss = jnp.sum(duration_loss * mask) / jnp.sum(mask)
+  loss = loss + 2 * duration_loss
   return (loss, new_aux) if is_training else (loss, new_aux, mel2_hat, mels)
 
 
@@ -63,7 +69,7 @@ def update(params, aux, rng, optim_state, inputs):
 
 def initial_state(batch):
   rng = jax.random.PRNGKey(42)
-  params, aux = hk.transform_with_state(lambda x: AcousticModel(True)(x)).init(rng, batch)
+  params, aux = hk.transform_with_state(lambda x: NATNet(True)(x)).init(rng, batch)
   optim_state = optimizer.init(params)
   return params, aux, rng, optim_state
 
