@@ -110,7 +110,7 @@ class NATNet(hk.Module):
     end_pos = jnp.cumsum(durations, axis=1)
     mid_pos = end_pos - durations/2  # B, T
 
-    d2 = jnp.square((mid_pos[:, None, :] - ruler[:, :, None]) / ranges[:, None, :])
+    d2 = jnp.square((mid_pos[:, None, :] - ruler[:, :, None]) / ranges[:, None, :]) / 10.0
     w = jax.nn.softmax(-d2, axis=-1)
     hk.set_state('attn', w)
     x = jnp.einsum('BLT,BTD->BLD', w, x)
