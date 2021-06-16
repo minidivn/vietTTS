@@ -1,7 +1,7 @@
 A Vietnamese TTS
 ================
 
-Tacotron + HiFiGAN vocoder for vietnamese datasets.
+Non-Attentive Tacotron (NAT) + HiFiGAN vocoder for vietnamese datasets. Read NAT paper at [here](https://arxiv.org/abs/2010.04301).
 
 A synthesized audio clip: [clip.wav](assets/infore/clip.wav). A colab notebook: [notebook](https://colab.research.google.com/drive/1oczrWOQOr1Y_qLdgis1twSlNZlfPVXoY?usp=sharing).
 
