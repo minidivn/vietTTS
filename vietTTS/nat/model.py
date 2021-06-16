@@ -106,7 +106,7 @@ class NATNet(hk.Module):
 
   def upsample(self, x, durations, ranges, L):
     ruler = jnp.arange(0, L)[None, :]  # B, L
-    durations = durations * FLAGS.sample_rate / (FLAGS.n_fft//4)
+    durations = durations * FLAGS.sample_rate / FLAGS.hop_length
     end_pos = jnp.cumsum(durations, axis=1)
     mid_pos = end_pos - durations/2  # B, T
 
@@ -137,11 +137,10 @@ class NATNet(hk.Module):
         durations
     )
     durations = jnp.where(tokens == FLAGS.word_end_index, 0., durations)
-    n_frames = jnp.sum(durations) * FLAGS.sample_rate / (FLAGS.n_fft // 4)
+    n_frames = jnp.sum(durations) * FLAGS.sample_rate / FLAGS.hop_length
     range_inputs = jnp.concatenate((x, durations[..., None]), axis=-1)
     ranges = self.range_predictor(range_inputs, lengths)
     x = self.upsample(x, durations, ranges, n_frames)
-    # TODO: generate frame_idx, improve this
     durations = jax.device_get(durations[0]).tolist()
     frame_idx = frame_idx_encode(durations)
     frame_idx = jnp.array(frame_idx)[None, :]

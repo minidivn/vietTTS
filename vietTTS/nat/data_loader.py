@@ -49,7 +49,6 @@ def load_textgrid(fn: Path):
 
 
 def frame_idx_encode(durations):
-  remain = 0
   out = []
   end_frame_idx = [0]
   t = 0.0
@@ -79,7 +78,7 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
   for fn in tg_files:
     ps, ds = zip(*load_textgrid(fn))
     ps = [phonemes.index(p) for p in ps]
-    l = len(ps)
+    duration_length = len(ps)
     ps = pad_seq(ps, token_seq_len, 0)
     ds = pad_seq(ds, token_seq_len, 0)
     fs = frame_idx_encode(ds)
@@ -103,7 +102,7 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
       y = y[:pad_wav_len]
     wav_length = len(y)
     y = np.pad(y, (0, pad_wav_len - len(y)))
-    data.append((fn.stem, ps, ds, l, y, wav_length, fs))
+    data.append((fn.stem, ps, ds, duration_length, y, wav_length, fs))
 
   batch = []
   while True:

@@ -35,7 +35,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   loss1 = (jnp.square(mel1_hat - mels) + jnp.square(mel2_hat - mels)) / 2
   loss2 = (jnp.abs(mel1_hat - mels) + jnp.abs(mel2_hat - mels)) / 2
   loss = jnp.mean((loss1 + loss2)/2, axis=-1)
-  mask = jnp.arange(0, L)[None, :] < (inputs.wav_lengths // (FLAGS.n_fft // 4))[:, None]
+  mask = jnp.arange(0, L)[None, :] < (inputs.wav_lengths // FLAGS.hop_length)[:, None]
   loss = jnp.sum(loss * mask) / jnp.sum(mask)
   duration_loss = jnp.square(duration_hat - inputs.durations)
   B, L = duration_loss.shape
