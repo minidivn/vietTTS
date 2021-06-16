@@ -42,15 +42,15 @@ def text2tokens(text, lexicon_fn):
 
 
 def predict_mel(tokens, silence_duration):
-  ckpt_fn = FLAGS.ckpt_dir / 'acoustic_ckpt_latest.pickle'
+  ckpt_fn = FLAGS.ckpt_dir / 'nat_ckpt_latest.pickle'
   with open(ckpt_fn, 'rb') as f:
     dic = pickle.load(f)
     last_step, params, aux, rng, optim_state = dic['step'], dic['params'], dic['aux'], dic['rng'], dic['optim_state']
 
   @hk.transform_with_state
-  def forward(tokens):
+  def forward(tokens, silence_duration):
     net = NATNet(is_training=False)
-    return net.inference(tokens)
+    return net.inference(tokens, silence_duration)
 
   predict_fn = forward.apply
   tokens = np.array(tokens, dtype=np.int32)[None, :]

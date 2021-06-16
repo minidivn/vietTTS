@@ -132,11 +132,11 @@ class NATNet(hk.Module):
     x = self.encoder(tokens, lengths)
     durations = self.duration_predictor(x, lengths)
     durations = jnp.where(
-        jnp.array(tokens)[None, :] == FLAGS.sp_index,
+        tokens == FLAGS.sp_index,
         jnp.clip(durations, a_min=silence_duration, a_max=None),
         durations
     )
-    durations = jnp.where(jnp.array(tokens)[None, :] == FLAGS.word_end_index, 0., durations)
+    durations = jnp.where(tokens == FLAGS.word_end_index, 0., durations)
     n_frames = jnp.sum(durations) * FLAGS.sample_rate / (FLAGS.n_fft // 4)
     range_inputs = jnp.concatenate((x, durations[..., None]), axis=-1)
     ranges = self.range_predictor(range_inputs, lengths)
@@ -146,7 +146,8 @@ class NATNet(hk.Module):
     frame_idx = frame_idx_encode(durations)
     frame_idx = jnp.array(frame_idx)[None, :]
     frame_embed = self.frame_pos_embed(frame_idx)
-    x = jnp.concatenate((x, frame_embed), axis=-1)
+    B, L, D = x.shape
+    x = jnp.concatenate((x, frame_embed[:, :L, :]), axis=-1)
 
     def loop_fn(inputs, state):
       cond = inputs

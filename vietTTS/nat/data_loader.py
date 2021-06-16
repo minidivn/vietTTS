@@ -48,40 +48,6 @@ def load_textgrid(fn: Path):
   return data
 
 
-def textgrid_data_loader(data_dir: Path, seq_len: int, batch_size: int, mode: str):
-  tg_files = sorted(data_dir.glob('*.TextGrid'))
-  random.Random(42).shuffle(tg_files)
-  L = len(tg_files) * 95 // 100
-  assert mode in ['train', 'val']
-  phonemes = load_phonemes_set_from_lexicon_file(data_dir / 'lexicon.txt')
-  if mode == 'train':
-    tg_files = tg_files[:L]
-  if mode == 'val':
-    tg_files = tg_files[L:]
-
-  data = []
-  for fn in tg_files:
-    ps, ds = zip(*load_textgrid(fn))
-    ps = [phonemes.index(p) for p in ps]
-    l = len(ps)
-    ps = pad_seq(ps, seq_len, 0)
-    ds = pad_seq(ds, seq_len, 0)
-    data.append((ps, ds, l))
-
-  batch = []
-  while True:
-    random.shuffle(data)
-    for e in data:
-      batch.append(e)
-      if len(batch) == batch_size:
-        ps, ds, lengths = zip(*batch)
-        ps = np.array(ps, dtype=np.int32)
-        ds = np.array(ds, dtype=np.float32)
-        lengths = np.array(lengths, dtype=np.int32)
-        yield DurationInput(ps, lengths, ds)
-        batch = []
-
-
 def frame_idx_encode(durations):
   remain = 0
   out = []
@@ -92,6 +58,7 @@ def frame_idx_encode(durations):
     end_frame_idx.append(int(t * FLAGS.sample_rate / (FLAGS.n_fft // 4)))
     num_frames = end_frame_idx[-1] - end_frame_idx[-2]
     out.extend(range(num_frames))
+  out.append(0)
   return out
 
 
