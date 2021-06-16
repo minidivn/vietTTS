@@ -30,18 +30,18 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
   B, L, D = mels.shape
   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
-  n_frames = inputs.durations * FLAGS.sample_rate / (FLAGS.n_fft//4)
-  inputs = inputs._replace(mels=inp_mels, durations=n_frames)
+  inputs = inputs._replace(mels=inp_mels)
   (mel1_hat, mel2_hat, duration_hat), new_aux = (net if is_training else val_net).apply(params, aux, rng, inputs)
   loss1 = (jnp.square(mel1_hat - mels) + jnp.square(mel2_hat - mels)) / 2
   loss2 = (jnp.abs(mel1_hat - mels) + jnp.abs(mel2_hat - mels)) / 2
   loss = jnp.mean((loss1 + loss2)/2, axis=-1)
   mask = jnp.arange(0, L)[None, :] < (inputs.wav_lengths // (FLAGS.n_fft // 4))[:, None]
   loss = jnp.sum(loss * mask) / jnp.sum(mask)
-  import pdb; pdb.set_trace()
   duration_loss = jnp.square(duration_hat - inputs.durations)
   B, L = duration_loss.shape
-  mask = jnp.arange(0, L)[None, :] < inputs.lengths
+  mask = jnp.arange(0, L)[None, :] < inputs.lengths[:, None]
+  # NOT predict [WORD END] token
+  mask = jnp.where(inputs.phonemes == FLAGS.word_end_index, False, mask)
   duration_loss = jnp.sum(duration_loss * mask) / jnp.sum(mask)
   loss = loss + 2 * duration_loss
   return (loss, new_aux) if is_training else (loss, new_aux, mel2_hat, mels)
@@ -89,7 +89,7 @@ def train():
   last_step = -1
 
   # loading latest checkpoint
-  ckpt_fn = FLAGS.ckpt_dir / 'acoustic_ckpt_latest.pickle'
+  ckpt_fn = FLAGS.ckpt_dir / 'nat_ckpt_latest.pickle'
   if ckpt_fn.exists():
     print('Resuming from latest checkpoint at', ckpt_fn)
     with open(ckpt_fn, 'rb') as f:
@@ -111,7 +111,7 @@ def train():
       val_batch = next(val_data_iter)
       val_loss, val_aux, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch)
       val_losses.append(val_loss)
-      attn = jax.device_get(val_aux['acoustic_model']['attn'][0])
+      attn = jax.device_get(val_aux['nat_net']['attn'][0])
       predicted_mel = jax.device_get(predicted_mel[0])
       gt_mel = jax.device_get(gt_mel[0])
 

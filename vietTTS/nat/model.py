@@ -3,7 +3,8 @@ import jax
 import jax.numpy as jnp
 from jax.numpy import ndarray
 
-from .config import FLAGS, AcousticInput, DurationInput
+from .config import FLAGS, AcousticInput
+from .data_loader import frame_idx_encode
 
 
 class BiLSTM(hk.Module):
@@ -105,6 +106,7 @@ class NATNet(hk.Module):
 
   def upsample(self, x, durations, ranges, L):
     ruler = jnp.arange(0, L)[None, :]  # B, L
+    durations = durations * FLAGS.sample_rate / (FLAGS.n_fft//4)
     end_pos = jnp.cumsum(durations, axis=1)
     mid_pos = end_pos - durations/2  # B, T
 
@@ -124,11 +126,27 @@ class NATNet(hk.Module):
       x = hk.dropout(hk.next_rng_key(), 0.5, x) if self.is_training else x
     return x
 
-  def inference(self, tokens, durations, n_frames):
+  def inference(self, tokens, silence_duration):
     B, L = tokens.shape
     lengths = jnp.array([L], dtype=jnp.int32)
     x = self.encoder(tokens, lengths)
-    x = self.upsample(x, durations, n_frames)
+    durations = self.duration_predictor(x, lengths)
+    durations = jnp.where(
+        jnp.array(tokens)[None, :] == FLAGS.sp_index,
+        jnp.clip(durations, a_min=silence_duration, a_max=None),
+        durations
+    )
+    durations = jnp.where(jnp.array(tokens)[None, :] == FLAGS.word_end_index, 0., durations)
+    n_frames = jnp.sum(durations) * FLAGS.sample_rate / (FLAGS.n_fft // 4)
+    range_inputs = jnp.concatenate((x, durations[..., None]), axis=-1)
+    ranges = self.range_predictor(range_inputs, lengths)
+    x = self.upsample(x, durations, ranges, n_frames)
+    # TODO: generate frame_idx, improve this
+    durations = jax.device_get(durations[0]).tolist()
+    frame_idx = frame_idx_encode(durations)
+    frame_idx = jnp.array(frame_idx)[None, :]
+    frame_embed = self.frame_pos_embed(frame_idx)
+    x = jnp.concatenate((x, frame_embed), axis=-1)
 
     def loop_fn(inputs, state):
       cond = inputs
@@ -136,6 +154,7 @@ class NATNet(hk.Module):
       prev_mel = self.prenet(prev_mel)
       x = jnp.concatenate((cond, prev_mel), axis=-1)
       x, new_hxcx = self.decoder(x, hxcx)
+      x = jnp.concatenate((x, cond), axis=-1)
       x = self.projection(x)
       return x, (x, new_hxcx)
 
