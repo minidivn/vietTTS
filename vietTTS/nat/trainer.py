@@ -44,7 +44,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   mask = jnp.where(inputs.phonemes == FLAGS.word_end_index, False, mask)
   duration_loss = jnp.sum(duration_loss * mask) / jnp.sum(mask)
   loss = loss + 2 * duration_loss
-  return (loss, new_aux) if is_training else (loss, new_aux, mel2_hat, mels)
+  return (loss, new_aux) if is_training else (loss, new_aux, mel2_hat, mels, duration_hat, inputs.durations)
 
 
 train_loss_fn = partial(loss_fn, is_training=True)
@@ -72,6 +72,16 @@ def initial_state(batch):
   params, aux = hk.transform_with_state(lambda x: NATNet(True)(x)).init(rng, batch)
   optim_state = optimizer.init(params)
   return params, aux, rng, optim_state
+
+
+def plot_val_duration(step: int, predicted_dur, gt_dur, length: int):
+  fn = FLAGS.ckpt_dir / f'duration_{step}.png'
+  plt.plot(predicted_dur[:length])
+  plt.plot(gt_dur[:length])
+  plt.legend(['predicted', 'gt'])
+  plt.title("Phoneme durations")
+  plt.savefig(fn)
+  plt.close()
 
 
 def train():
@@ -109,16 +119,21 @@ def train():
 
     if step % 10 == 0:
       val_batch = next(val_data_iter)
-      val_loss, val_aux, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch)
+      val_loss, val_aux, predicted_mel, gt_mel, duration_hat, duration_gt = val_loss_fn(params, aux, rng, val_batch)
       val_losses.append(val_loss)
       attn = jax.device_get(val_aux['nat_net']['attn'][0])
       predicted_mel = jax.device_get(predicted_mel[0])
       gt_mel = jax.device_get(gt_mel[0])
+      duration_hat = jax.device_get(duration_hat[0])
+      duration_gt = jax.device_get(duration_gt[0])
+      token_length = val_batch.lengths[0]
 
     if step % 1000 == 0:
       loss = sum(losses).item() / len(losses)
       val_loss = sum(val_losses).item() / len(val_losses)
       tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}')
+
+      plot_val_duration(step, duration_hat, duration_gt, token_length)
 
       # saving predicted mels
       plt.figure(figsize=(10, 10))
