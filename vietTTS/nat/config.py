@@ -59,4 +59,5 @@ class AcousticInput(NamedTuple):
   wavs: ndarray
   wav_lengths: ndarray
   mels: ndarray
-  frame_idx: ndarray
+  frame_idx_fwd: ndarray
+  frame_idx_bwd: ndarray

@@ -48,7 +48,7 @@ def load_textgrid(fn: Path):
   return data
 
 
-def frame_idx_encode(durations):
+def frame_idx_encode(durations, forward=True):
   out = []
   end_frame_idx = [0]
   t = 0.0
@@ -56,7 +56,10 @@ def frame_idx_encode(durations):
     t = t + d
     end_frame_idx.append(int(t * FLAGS.sample_rate / (FLAGS.n_fft // 4)))
     num_frames = end_frame_idx[-1] - end_frame_idx[-2]
-    out.extend(range(num_frames))
+    if forward:
+      out.extend(range(num_frames))
+    else:
+      out.extend(reversed(list(range(num_frames))))
   out.append(0)
   return out
 
@@ -81,8 +84,10 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
     duration_length = len(ps)
     ps = pad_seq(ps, token_seq_len, 0)
     ds = pad_seq(ds, token_seq_len, 0)
-    fs = frame_idx_encode(ds)
-    fs = pad_seq(fs, pad_wav_len // (FLAGS.n_fft // 4), 0)
+    fs1 = frame_idx_encode(ds, forward=True)
+    fs1 = pad_seq(fs1, pad_wav_len // (FLAGS.n_fft // 4), 0)
+    fs2 = frame_idx_encode(ds, forward=False)
+    fs2 = pad_seq(fs2, pad_wav_len // (FLAGS.n_fft // 4), 0)
 
     wav_file = data_dir / f'{fn.stem}.wav'
     sr, y = wavfile.read(wav_file)
@@ -102,7 +107,7 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
       y = y[:pad_wav_len]
     wav_length = len(y)
     y = np.pad(y, (0, pad_wav_len - len(y)))
-    data.append((fn.stem, ps, ds, duration_length, y, wav_length, fs))
+    data.append((fn.stem, ps, ds, duration_length, y, wav_length, fs1, fs2))
 
   batch = []
   while True:
@@ -110,17 +115,18 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
     for idx, e in enumerate(data):
       batch.append(e)
       if len(batch) == batch_size or (mode == 'gta' and idx == len(data) - 1):
-        names, ps, ds, lengths, wavs, wav_lengths, fs = zip(*batch)
+        names, ps, ds, lengths, wavs, wav_lengths, fs1, fs2 = zip(*batch)
         ps = np.array(ps, dtype=np.int32)
-        fs = np.array(fs, dtype=np.int32)
+        fs1 = np.array(fs1, dtype=np.int32)
+        fs2 = np.array(fs2, dtype=np.int32)
         ds = np.array(ds, dtype=np.float32)
         lengths = np.array(lengths, dtype=np.int32)
         wavs = np.array(wavs)
         wav_lengths = np.array(wav_lengths, dtype=np.int32)
         if mode == 'gta':
-          yield names, AcousticInput(ps, lengths, ds, wavs, wav_lengths, None, fs)
+          yield names, AcousticInput(ps, lengths, ds, wavs, wav_lengths, None, fs1, fs2)
         else:
-          yield AcousticInput(ps, lengths, ds, wavs, wav_lengths, None, fs)
+          yield AcousticInput(ps, lengths, ds, wavs, wav_lengths, None, fs1, fs2)
         batch = []
     if mode == 'gta':
       assert len(batch) == 0

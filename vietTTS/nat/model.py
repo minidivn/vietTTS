@@ -1,3 +1,6 @@
+import math
+from operator import pos
+
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -24,6 +27,15 @@ class BiLSTM(hk.Module):
     new_hx_bwd, new_hxcx_bwd = hk.dynamic_unroll(self.lstm_bwd, (x_bwd, mask_bwd), h0c0_bwd, time_major=False)
     x = jnp.concatenate((new_hx_fwd, jnp.flip(new_hx_bwd, axis=1)), axis=-1)
     return x
+
+
+def positional_encoder(x, position, dim):
+  position = position[:, :, None]
+  div_term = jnp.exp(jnp.arange(0, dim, 2, dtype=jnp.float32) * (-math.log(10_000.0) / dim))
+  div_term = div_term[None, None, :]
+  enc1 = jnp.sin(position * div_term)
+  enc2 = jnp.cos(position * div_term)
+  return jnp.concatenate((x, enc1, enc2), axis=-1)
 
 
 class TokenEncoder(hk.Module):
@@ -57,16 +69,19 @@ class TokenEncoder(hk.Module):
 class ScalarPredictor(hk.Module):
   """Range/Duration Predictor."""
 
-  def __init__(self, lstm_dim, is_training=True):
+  def __init__(self, lstm_dim, use_lstm=True, is_training=True):
     super().__init__()
     self.is_training = is_training
-    self.bilstm1 = BiLSTM(lstm_dim, is_training)
-    self.bilstm2 = BiLSTM(lstm_dim, is_training)
+    self.use_lstm = use_lstm
+    if use_lstm:
+      self.bilstm1 = BiLSTM(lstm_dim, is_training)
+      self.bilstm2 = BiLSTM(lstm_dim, is_training)
     self.projection = hk.Linear(1)
 
   def __call__(self, x, lengths):
-    x = self.bilstm1(x, lengths)
-    x = self.bilstm2(x, lengths)
+    if self.use_lstm:
+      x = self.bilstm1(x, lengths)
+      x = self.bilstm2(x, lengths)
     x = jnp.squeeze(self.projection(x), axis=-1)
     x = jax.nn.softplus(x)
     return x
@@ -93,9 +108,8 @@ class NATNet(hk.Module):
     self.postnet_bns = [hk.BatchNorm(True, True, 0.999) for _ in range(4)] + [None]
 
     # upsample
-    self.duration_predictor = ScalarPredictor(FLAGS.duration_lstm_dim, is_training)
-    self.range_predictor = ScalarPredictor(FLAGS.range_lstm_dim, is_training)
-    self.frame_pos_embed = hk.Embed(256, 32)
+    self.duration_predictor = ScalarPredictor(FLAGS.duration_lstm_dim, True, is_training)
+    self.range_predictor = ScalarPredictor(FLAGS.range_lstm_dim, True, is_training)
 
   def prenet(self, x, dropout=0.5):
     x = jax.nn.relu(self.prenet_fc1(x))
@@ -141,12 +155,14 @@ class NATNet(hk.Module):
     range_inputs = jnp.concatenate((x, durations[..., None]), axis=-1)
     ranges = self.range_predictor(range_inputs, lengths)
     x = self.upsample(x, durations, ranges, n_frames)
-    durations = jax.device_get(durations[0]).tolist()
-    frame_idx = frame_idx_encode(durations)
-    frame_idx = jnp.array(frame_idx)[None, :]
-    frame_embed = self.frame_pos_embed(frame_idx)
     B, L, D = x.shape
-    x = jnp.concatenate((x, frame_embed[:, :L, :]), axis=-1)
+    durations = jax.device_get(durations[0]).tolist()
+    frame_idx_fwd = frame_idx_encode(durations, forward=True)
+    frame_idx_fwd = jnp.array(frame_idx_fwd)[None, :]
+    frame_idx_bwd = frame_idx_encode(durations, forward=False)
+    frame_idx_bwd = jnp.array(frame_idx_bwd)[None, :]
+    x = positional_encoder(x, frame_idx_fwd[:, :L], 16)
+    x = positional_encoder(x, frame_idx_bwd[:, :L], 16)
 
     def loop_fn(inputs, state):
       cond = inputs
@@ -172,8 +188,8 @@ class NATNet(hk.Module):
     range_inputs = jnp.concatenate((x, inputs.durations[..., None]), axis=-1)
     ranges = self.range_predictor(range_inputs, inputs.lengths)
     x = self.upsample(x, inputs.durations, ranges, inputs.mels.shape[1])
-    frame_embed = self.frame_pos_embed(inputs.frame_idx)
-    x = jnp.concatenate((x, frame_embed), axis=-1)
+    x = positional_encoder(x, inputs.frame_idx_fwd, 16)
+    x = positional_encoder(x, inputs.frame_idx_bwd, 16)
     cond = x
 
     mels = self.prenet(inputs.mels)
