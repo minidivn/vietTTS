@@ -185,7 +185,7 @@ class NATNet(hk.Module):
   def __call__(self, inputs: AcousticInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
     duration_hat = self.duration_predictor(
-        hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x,
+        hk.dropout(hk.next_rng_key(), 0.5, x) if self.is_training else x,
         inputs.lengths
     )
     range_inputs = jnp.concatenate((x, inputs.durations[..., None]), axis=-1)
