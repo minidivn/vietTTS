@@ -37,7 +37,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   loss = jnp.mean((loss1 + loss2)/2, axis=-1)
   mask = jnp.arange(0, L)[None, :] < (inputs.wav_lengths // FLAGS.hop_length)[:, None]
   loss = jnp.sum(loss * mask) / jnp.sum(mask)
-  duration_loss = jnp.square(duration_hat - inputs.durations)
+  duration_loss = jnp.abs(duration_hat - inputs.durations)
   B, L = duration_loss.shape
   mask = jnp.arange(0, L)[None, :] < inputs.lengths[:, None]
   # NOT predict [WORD END] token

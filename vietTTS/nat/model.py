@@ -108,7 +108,7 @@ class NATNet(hk.Module):
     self.postnet_bns = [hk.BatchNorm(True, True, 0.999) for _ in range(4)] + [None]
 
     # upsample
-    self.duration_predictor = ScalarPredictor(FLAGS.duration_lstm_dim, True, is_training)
+    self.duration_predictor = ScalarPredictor(FLAGS.duration_lstm_dim, False, is_training)
     self.range_predictor = ScalarPredictor(FLAGS.range_lstm_dim, True, is_training)
 
   def prenet(self, x, dropout=0.5):
@@ -184,7 +184,10 @@ class NATNet(hk.Module):
 
   def __call__(self, inputs: AcousticInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
-    duration_hat = self.duration_predictor(x, inputs.lengths)
+    duration_hat = self.duration_predictor(
+        hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x,
+        inputs.lengths
+    )
     range_inputs = jnp.concatenate((x, inputs.durations[..., None]), axis=-1)
     ranges = self.range_predictor(range_inputs, inputs.lengths)
     x = self.upsample(x, inputs.durations, ranges, inputs.mels.shape[1])
