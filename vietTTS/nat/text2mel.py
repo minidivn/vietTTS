@@ -41,25 +41,25 @@ def text2tokens(text, lexicon_fn):
   return tokens
 
 
-def predict_mel(tokens, silence_duration):
+def predict_mel(tokens, silence_duration, speaker):
   ckpt_fn = FLAGS.ckpt_dir / 'nat_ckpt_latest.pickle'
   with open(ckpt_fn, 'rb') as f:
     dic = pickle.load(f)
     last_step, params, aux, rng, optim_state = dic['step'], dic['params'], dic['aux'], dic['rng'], dic['optim_state']
 
   @hk.transform_with_state
-  def forward(tokens, silence_duration):
+  def forward(tokens, silence_duration, speaker):
     net = NATNet(is_training=False)
-    return net.inference(tokens, silence_duration)
+    return net.inference(tokens, silence_duration, speaker)
 
   predict_fn = forward.apply
   tokens = np.array(tokens, dtype=np.int32)[None, :]
-  return predict_fn(params, aux, rng, tokens, silence_duration)[0]
+  return predict_fn(params, aux, rng, tokens, silence_duration, speaker)[0]
 
 
-def text2mel(text: str, lexicon_fn=FLAGS.data_dir / 'lexicon.txt', silence_duration: float = -1.):
+def text2mel(text: str, lexicon_fn=FLAGS.data_dir / 'lexicon.txt', silence_duration: float = -1., speaker: int = 0):
   tokens = text2tokens(text, lexicon_fn)
-  mels = predict_mel(tokens, silence_duration)
+  mels = predict_mel(tokens, silence_duration, speaker)
   return mels
 
 

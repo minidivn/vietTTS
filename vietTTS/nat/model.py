@@ -94,6 +94,8 @@ class NATNet(hk.Module):
     super().__init__()
     self.is_training = is_training
     self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.acoustic_encoder_dim, 0.5, is_training)
+    self.speaker_embed = hk.Embed(256, FLAGS.speaker_embed_dim,
+                                  w_init=hk.initializers.TruncatedNormal(1.0 / FLAGS.speaker_embed_dim))
     self.decoder = hk.deep_rnn_with_skip_connections([
         hk.LSTM(FLAGS.acoustic_decoder_dim),
         hk.LSTM(FLAGS.acoustic_decoder_dim)
@@ -140,10 +142,14 @@ class NATNet(hk.Module):
       x = hk.dropout(hk.next_rng_key(), 0.5, x) if self.is_training else x
     return x
 
-  def inference(self, tokens, silence_duration):
+  def inference(self, tokens, silence_duration, speaker):
     B, L = tokens.shape
     lengths = jnp.array([L], dtype=jnp.int32)
     x = self.encoder(tokens, lengths)
+    speaker = jnp.array([speaker], dtype=jnp.int32)
+    speaker = self.speaker_embed(speaker)[:, None, :]
+    speaker = jnp.broadcast_to(speaker, (speaker.shape[0], x.shape[1], speaker.shape[-1]))
+    x = jnp.concatenate((x, speaker), axis=-1)
     durations = self.duration_predictor(x, lengths)
     durations = jnp.where(
         tokens == FLAGS.sp_index,
@@ -184,6 +190,9 @@ class NATNet(hk.Module):
 
   def __call__(self, inputs: AcousticInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
+    speaker = self.speaker_embed(inputs.speakers)[:, None, :]
+    speaker = jnp.broadcast_to(speaker, (speaker.shape[0], x.shape[1], speaker.shape[-1]))
+    x = jnp.concatenate((x, speaker), axis=-1)
     duration_hat = self.duration_predictor(
         hk.dropout(hk.next_rng_key(), 0.5, x) if self.is_training else x,
         inputs.lengths

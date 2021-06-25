@@ -43,7 +43,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   # NOT predict [WORD END] token
   mask = jnp.where(inputs.phonemes == FLAGS.word_end_index, False, mask)
   duration_loss = jnp.sum(duration_loss * mask) / jnp.sum(mask)
-  loss = loss + 2 * duration_loss
+  loss = loss + duration_loss * 0.1
   return (loss, new_aux) if is_training else (loss, new_aux, mel2_hat, mels, duration_hat, inputs.durations)
 
 

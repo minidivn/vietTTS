@@ -9,6 +9,7 @@ class FLAGS(Namespace):
   range_lstm_dim = 256
   duration_lstm_dim = 256
   vocab_size = 256
+  speaker_embed_dim = 64
   duration_embed_dropout_rate = 0.5
   num_training_steps = 1_000_000
   postnet_dim = 512
@@ -42,7 +43,6 @@ class FLAGS(Namespace):
 
   # ckpt
   ckpt_dir = Path('assets/infore/nat')
-  data_dir = Path('assets/infore/data')
   data_dir = Path('train_data')
 
 
@@ -61,3 +61,4 @@ class AcousticInput(NamedTuple):
   mels: ndarray
   frame_idx_fwd: ndarray
   frame_idx_bwd: ndarray
+  speakers: ndarray
