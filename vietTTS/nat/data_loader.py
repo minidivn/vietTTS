@@ -84,7 +84,7 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
     tg_files = tg_files[L:]
 
   data = []
-  for fn in tqdm(tg_files, desc='load data'):
+  for fn in tqdm(tg_files, desc='load data', disable=(mode == 'val')):
     ps, ds = zip(*load_textgrid(fn))
     ps = [phonemes.index(p) for p in ps]
     duration_length = len(ps)
@@ -110,8 +110,9 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
 
     if len(y) > pad_wav_len:
       y = y[:pad_wav_len]
-    wav_length = len(y)
-    y = np.pad(y, (0, pad_wav_len - len(y)))
+    else:
+      wav_length = len(y)
+      y = np.pad(y, (0, pad_wav_len - len(y)))
     spk = all_speakers.index(fn.parent.stem)
     data.append((fn.stem, ps, ds, duration_length, y, wav_length, fs1, fs2, spk))
 
