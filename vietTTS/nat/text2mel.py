@@ -33,9 +33,15 @@ def text2tokens(text, lexicon_fn):
       tokens.extend(p)
       tokens.append(FLAGS.word_end_index)
     else:
-      for p in word:
-        if p in phonemes:
-          tokens.append(phonemes.index(p))
+      w = word
+      while len(w) > 0:
+        for l in [3, 2, 1]:
+          if w[0:l] in phonemes:
+            tokens.append(phonemes.index(w[0:l]))
+            w = w[l:]
+            break
+        else:
+          w = w[1:]
       tokens.append(FLAGS.word_end_index)
   tokens.append(FLAGS.sp_index)  # silence
   return tokens
@@ -68,9 +74,10 @@ if __name__ == '__main__':
   from pathlib import Path
   parser = ArgumentParser()
   parser.add_argument('--text', type=str, required=True)
+  parser.add_argument('--speaker', type=int, default=0)
   parser.add_argument('--output', type=Path, required=True)
   args = parser.parse_args()
-  mel = text2mel(args.text)
+  mel = text2mel(args.text, speaker=args.speaker)
   plt.figure(figsize=(10, 5))
   plt.imshow(mel[0].T, origin='lower', aspect='auto')
   plt.savefig(str(args.output))
