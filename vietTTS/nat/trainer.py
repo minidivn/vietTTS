@@ -32,9 +32,8 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
   inputs = inputs._replace(mels=inp_mels)
   (mel1_hat, mel2_hat, duration_hat), new_aux = (net if is_training else val_net).apply(params, aux, rng, inputs)
-  loss1 = (jnp.square(mel1_hat - mels) + jnp.square(mel2_hat - mels)) / 2
-  loss2 = (jnp.abs(mel1_hat - mels) + jnp.abs(mel2_hat - mels)) / 2
-  loss = jnp.mean((loss1 + loss2)/2, axis=-1)
+  loss = (jnp.abs(mel1_hat - mels) + jnp.abs(mel2_hat - mels)) / 2
+  loss = jnp.mean(loss, axis=-1)
   mask = jnp.arange(0, L)[None, :] < (inputs.wav_lengths // FLAGS.hop_length)[:, None]
   loss = jnp.sum(loss * mask) / jnp.sum(mask)
   duration_loss = jnp.abs(duration_hat - inputs.durations)
@@ -43,7 +42,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   # NOT predict [WORD END] token
   mask = jnp.where(inputs.phonemes == FLAGS.word_end_index, False, mask)
   duration_loss = jnp.sum(duration_loss * mask) / jnp.sum(mask)
-  loss = loss + duration_loss * 0.1
+  loss = loss + duration_loss * 1e-3
   return (loss, new_aux) if is_training else (loss, new_aux, mel2_hat, mels, duration_hat, inputs.durations)
 
 
